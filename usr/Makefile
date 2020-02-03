@@ -32,7 +32,7 @@ INCLUDES += -I.
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += $(INCLUDES)
-CFLAGS += -O3 -flto=8
+CFLAGS += -O3 -flto=8 -march=native -mtune=native
 CFLAGS += -Wall -Wstrict-prototypes -Werror
 CFLAGS += -DTGT_VERSION=\"$(VERSION)$(EXTRAVERSION)\"
 CFLAGS += -DBSDIR=\"$(DESTDIR)$(libdir)/backing-store\"
