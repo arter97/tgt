@@ -40,13 +40,10 @@
                      Add header for external use
  */
 
-#include <pthread.h>
 #include "crc32c.h"
 
 /* CRC-32C (iSCSI) polynomial in reversed bit order. */
 #define POLY 0x82f63b78
-
-#ifdef __x86_64__
 
 /* Hardware CRC-32C for Intel and compatible processors. */
 
@@ -142,21 +139,17 @@ static inline uint32_t crc32c_shift(uint32_t zeros[][256], uint32_t crc) {
 #define SHORTx2 "512"
 
 /* Tables for hardware crc that shift a crc by LONG and SHORT zeros. */
-static pthread_once_t crc32c_once_hw = PTHREAD_ONCE_INIT;
 static uint32_t crc32c_long[4][256];
 static uint32_t crc32c_short[4][256];
 
 /* Initialize tables for shifting crcs. */
-static void crc32c_init_hw(void) {
+static void __attribute__((constructor)) crc32c_init_hw(void) {
     crc32c_zeros(crc32c_long, LONG);
     crc32c_zeros(crc32c_short, SHORT);
 }
 
 /* Compute CRC-32C using the Intel hardware instruction. */
-static uint32_t crc32c_hw(uint32_t crc, void const *buf, size_t len) {
-    /* populate shift tables the first time through */
-    pthread_once(&crc32c_once_hw, crc32c_init_hw);
-
+static uint32_t crc32c(uint32_t crc, void const *buf, size_t len) {
     /* pre-process the crc */
     crc = ~crc;
     uint64_t crc0 = crc;            /* 64-bits for crc32q instruction */
@@ -239,233 +232,3 @@ static uint32_t crc32c_hw(uint32_t crc, void const *buf, size_t len) {
     /* return a post-processed crc */
     return ~crc0;
 }
-
-/* Check for SSE 4.2.  SSE 4.2 was first supported in Nehalem processors
-   introduced in November, 2008.  This does not check for the existence of the
-   cpuid instruction itself, which was introduced on the 486SL in 1992, so this
-   will fail on earlier x86 processors.  cpuid works on all Pentium and later
-   processors. */
-#define SSE42(have) \
-    do { \
-        uint32_t eax, ecx; \
-        eax = 1; \
-        __asm__("cpuid" \
-                : "=c"(ecx) \
-                : "a"(eax) \
-                : "%ebx", "%edx"); \
-        (have) = (ecx >> 20) & 1; \
-    } while (0)
-
-/* Compute a CRC-32C.  If the crc32 instruction is available, use the hardware
-   version.  Otherwise, use the software version. */
-uint32_t crc32c(uint32_t crc, void const *buf, size_t len) {
-    int sse42;
-    
-    SSE42(sse42);
-    return sse42 ? crc32c_hw(crc, buf, len) : crc32c_sw(crc, buf, len);
-}
-
-#else /* !__x86_64__ */
-
-uint32_t crc32c(uint32_t crc, void const *buf, size_t len) {
-    return crc32c_sw(crc, buf, len);
-}
-
-#endif
-
-/* Construct table for software CRC-32C little-endian calculation. */
-static pthread_once_t crc32c_once_little = PTHREAD_ONCE_INIT;
-static uint32_t crc32c_table_little[8][256];
-static void crc32c_init_sw_little(void) {
-    for (unsigned n = 0; n < 256; n++) {
-        uint32_t crc = n;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc32c_table_little[0][n] = crc;
-    }
-    for (unsigned n = 0; n < 256; n++) {
-        uint32_t crc = crc32c_table_little[0][n];
-        for (unsigned k = 1; k < 8; k++) {
-            crc = crc32c_table_little[0][crc & 0xff] ^ (crc >> 8);
-            crc32c_table_little[k][n] = crc;
-        }
-    }
-}
-
-/* Compute a CRC-32C in software assuming a little-endian architecture,
-   constructing the required table if that hasn't already been done. */
-uint32_t crc32c_sw_little(uint32_t crc, void const *buf, size_t len) {
-    unsigned char const *next = buf;
-
-    pthread_once(&crc32c_once_little, crc32c_init_sw_little);
-    crc = ~crc;
-    while (len && ((uintptr_t)next & 7) != 0) {
-        crc = crc32c_table_little[0][(crc ^ *next++) & 0xff] ^ (crc >> 8);
-        len--;
-    }
-    if (len >= 8) {
-        uint64_t crcw = crc;
-        do {
-            crcw ^= *(uint64_t const *)next;
-            crcw = crc32c_table_little[7][crcw & 0xff] ^
-                   crc32c_table_little[6][(crcw >> 8) & 0xff] ^
-                   crc32c_table_little[5][(crcw >> 16) & 0xff] ^
-                   crc32c_table_little[4][(crcw >> 24) & 0xff] ^
-                   crc32c_table_little[3][(crcw >> 32) & 0xff] ^
-                   crc32c_table_little[2][(crcw >> 40) & 0xff] ^
-                   crc32c_table_little[1][(crcw >> 48) & 0xff] ^
-                   crc32c_table_little[0][crcw >> 56];
-            next += 8;
-            len -= 8;
-        } while (len >= 8);
-        crc = crcw;
-    }
-    while (len) {
-        crc = crc32c_table_little[0][(crc ^ *next++) & 0xff] ^ (crc >> 8);
-        len--;
-    }
-    return ~crc;
-}
-
-/* Swap the bytes in a uint64_t.  (Only for big-endian.) */
-#if defined(__has_builtin) || (defined(__GNUC__) && \
-    (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3)))
-#  define swap __builtin_bswap64
-#else
-static inline uint64_t swap(uint64_t x) {
-    x = ((x << 8) & 0xff00ff00ff00ff00) | ((x >> 8) & 0xff00ff00ff00ff);
-    x = ((x << 16) & 0xffff0000ffff0000) | ((x >> 16) & 0xffff0000ffff);
-    return (x << 32) | (x >> 32);
-}
-#endif
-
-/* Construct tables for software CRC-32C big-endian calculation. */
-static pthread_once_t crc32c_once_big = PTHREAD_ONCE_INIT;
-static uint32_t crc32c_table_big_byte[256];
-static uint64_t crc32c_table_big[8][256];
-static void crc32c_init_sw_big(void) {
-    for (unsigned n = 0; n < 256; n++) {
-        uint32_t crc = n;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc = crc & 1 ? (crc >> 1) ^ POLY : crc >> 1;
-        crc32c_table_big_byte[n] = crc;
-    }
-    for (unsigned n = 0; n < 256; n++) {
-        uint32_t crc = crc32c_table_big_byte[n];
-        crc32c_table_big[0][n] = swap(crc);
-        for (unsigned k = 1; k < 8; k++) {
-            crc = crc32c_table_big_byte[crc & 0xff] ^ (crc >> 8);
-            crc32c_table_big[k][n] = swap(crc);
-        }
-    }
-}
-
-/* Compute a CRC-32C in software assuming a big-endian architecture,
-   constructing the required tables if that hasn't already been done. */
-uint32_t crc32c_sw_big(uint32_t crc, void const *buf, size_t len) {
-    unsigned char const *next = buf;
-
-    pthread_once(&crc32c_once_big, crc32c_init_sw_big);
-    crc = ~crc;
-    while (len && ((uintptr_t)next & 7) != 0) {
-        crc = crc32c_table_big_byte[(crc ^ *next++) & 0xff] ^ (crc >> 8);
-        len--;
-    }
-    if (len >= 8) {
-        uint64_t crcw = swap(crc);
-        do {
-            crcw ^= *(uint64_t const *)next;
-            crcw = crc32c_table_big[0][crcw & 0xff] ^
-                   crc32c_table_big[1][(crcw >> 8) & 0xff] ^
-                   crc32c_table_big[2][(crcw >> 16) & 0xff] ^
-                   crc32c_table_big[3][(crcw >> 24) & 0xff] ^
-                   crc32c_table_big[4][(crcw >> 32) & 0xff] ^
-                   crc32c_table_big[5][(crcw >> 40) & 0xff] ^
-                   crc32c_table_big[6][(crcw >> 48) & 0xff] ^
-                   crc32c_table_big[7][(crcw >> 56)];
-            next += 8;
-            len -= 8;
-        } while (len >= 8);
-        crc = swap(crcw);
-    }
-    while (len) {
-        crc = crc32c_table_big_byte[(crc ^ *next++) & 0xff] ^ (crc >> 8);
-        len--;
-    }
-    return ~crc;
-}
-
-/* Table-driven software CRC-32C.  This is about 15 times slower than using the
-   hardware instructions.  Determine the endianess of the processor and proceed
-   accordingly.  Ideally the endianess will be determined at compile time, in
-   which case the unused functions and tables for the other endianess will be
-   removed by the optimizer.  If not, then the proper routines and tables will
-   be used, even if the endianess is changed mid-stream.  (Yes, there are
-   processors that permit that -- go figure.) */
-uint32_t crc32c_sw(uint32_t crc, void const *buf, size_t len) {
-    static int const little = 1;
-    if (*(char const *)&little)
-        return crc32c_sw_little(crc, buf, len);
-    else
-        return crc32c_sw_big(crc, buf, len);
-}
-
-#ifdef TEST
-
-#include <stdio.h>
-#include <stdlib.h>
-#include "load.h"
-
-int main(int argc, char **argv) {
-    /* interpret argument */
-    if (argc > 2) {
-        fputs("only one argument permitted\n", stderr);
-        return 1;
-    }
-    long rep = argc == 1 ? 1 : strtol(argv[1], NULL, 10);
-    if (rep == 0) {
-        fputs("usage: crc32c [[-]nnn] < data\n"
-              "  where nnn is the number of times to repeat\n"
-              "  negative forces the software implementation\n", stderr);
-        return 0;
-    }
-    int sw = rep < 0;
-    if (sw)
-        rep = -rep;
-
-    /* read input */
-    void *dat = NULL;
-    size_t size, len;
-    int ret = load(stdin, 0, &dat, &size, &len);
-    if (ret) {
-        fputs("error reading from stdin\n", stderr);
-        return 1;
-    }
-
-    /* compute crc rep times */
-    uint32_t crc;
-    do {
-        crc = sw ? crc32c_sw(0, dat, len) : crc32c(0, dat, len);
-    } while (--rep);
-
-    /* show crc */
-    printf("0x%08x\n", crc);
-
-    /* clean up */
-    free(dat);
-    return 0;
-}
-
-#endif /* TEST */
