@@ -16,7 +16,7 @@ export GLFS_BD
 export SD_NOTIFY
 
 .PHONY: all
-all: programs doc conf scripts
+all: programs
 
 # Targets for the /usr/sbin utilities
 .PHONY: programs install-programs clean-programs
