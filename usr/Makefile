@@ -40,12 +40,8 @@ INCLUDES += -I.
 
 CFLAGS += -D_GNU_SOURCE
 CFLAGS += $(INCLUDES)
-ifneq ($(DEBUG),)
-CFLAGS += -g -O0 -ggdb -rdynamic
-else
-CFLAGS += -g -O2 -fno-strict-aliasing
-endif
-CFLAGS += -Wall -Wstrict-prototypes -Werror -fPIC
+CFLAGS += -O3 -flto=8
+CFLAGS += -Wall -Wstrict-prototypes -Werror
 CFLAGS += -DTGT_VERSION=\"$(VERSION)$(EXTRAVERSION)\"
 CFLAGS += -DBSDIR=\"$(DESTDIR)$(libdir)/backing-store\"
 
@@ -63,13 +59,12 @@ TGTD_OBJS += tgtd.o mgmt.o target.o scsi.o log.o driver.o util.o work.o \
 
 TGTD_DEP = $(TGTD_OBJS:.o=.d)
 
-LDFLAGS = -Wl,-E,-rpath=$(libdir)
+LDFLAGS = $(CFLAGS) -Wl,-E,-rpath=$(libdir)
 
 .PHONY:all
 all: $(PROGRAMS) $(MODULES)
 
 tgtd: $(TGTD_OBJS)
-	echo $(CC) $^ -o $@ $(LIBS)
 	$(CC) $^ -o $@ $(LDFLAGS) $(LIBS)
 
 -include $(TGTD_DEP)
@@ -78,7 +73,7 @@ TGTADM_OBJS = tgtadm.o concat_buf.o
 TGTADM_DEP = $(TGTADM_OBJS:.o=.d)
 
 tgtadm: $(TGTADM_OBJS)
-	$(CC) $^ -o $@
+	$(CC) $^ -o $@ $(CFLAGS)
 
 -include $(TGTADM_DEP)
 
@@ -86,7 +81,7 @@ TGTIMG_OBJS = tgtimg.o libssc.o
 TGTIMG_DEP = $(TGTIMG_OBJS:.o=.d)
 
 tgtimg: $(TGTIMG_OBJS)
-	$(CC) $^ -o $@
+	$(CC) $^ -o $@ $(CFLAGS)
 
 -include $(TGTIMG_DEP)
 
