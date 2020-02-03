@@ -1,14 +1,6 @@
 sbindir ?= $(PREFIX)/sbin
 libdir ?= $(PREFIX)/lib/tgt
 
-ifneq ($(shell test -e /usr/include/linux/signalfd.h && echo 1),)
-CFLAGS += -DUSE_SIGNALFD
-endif
-
-ifneq ($(shell test -n $(shell find /usr/include -name "timerfd.h" | head -n1) && echo 1),)
-CFLAGS += -DUSE_TIMERFD
-endif
-
 TGTD_OBJS += $(addprefix iscsi/, conn.o param.o session.o \
 		iscsid.o target.o chap.o sha1.o md5.o transport.o iscsi_tcp.o \
 		isns.o)
@@ -25,11 +17,11 @@ ifneq ($(SD_NOTIFY),)
 CFLAGS += -DUSE_SYSTEMD
 endif
 
-ifneq ($(shell test -e /usr/include/sys/eventfd.h && test -e /usr/include/libaio.h && echo 1),)
+CFLAGS += -DUSE_SIGNALFD
+CFLAGS += -DUSE_TIMERFD
 CFLAGS += -DUSE_EVENTFD
 TGTD_OBJS += bs_aio.o
 LIBS += -laio
-endif
 
 ifneq ($(ISCSI_RDMA),)
 TGTD_OBJS += iscsi/iser.o iscsi/iser_text.o
