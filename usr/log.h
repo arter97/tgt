@@ -73,17 +73,8 @@ extern void log_debug(const char *fmt, ...)
 	__attribute__ ((format (printf, 1, 2)));
 
 #ifdef NO_LOGGING
-#define eprintf(fmt, args...)						\
-do {									\
-	fprintf(stderr, "%s: " fmt, program_name, ##args);		\
-} while (0)
-
-#define dprintf(fmt, args...)						\
-do {									\
-	if (debug)							\
-		fprintf(stderr, "%s %d: " fmt,				\
-			__FUNCTION__, __LINE__, ##args);		\
-} while (0)
+#define eprintf(fmt, args...) fprintf(stderr, fmt, ##args)
+#define dprintf(x...)	((void)0)
 #else
 #define eprintf(fmt, args...)						\
 do {									\

@@ -40,7 +40,6 @@
 #include "scsi.h"
 #include "util.h"
 
-#define NO_LOGGING
 #include "log.h"
 
 enum {

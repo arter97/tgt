@@ -41,7 +41,6 @@
 #include "list.h"
 #include "tgtadm.h"
 
-#define NO_LOGGING
 #include "log.h"
 
 static const char program_name[] = "tgtadm";

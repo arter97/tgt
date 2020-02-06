@@ -34,6 +34,7 @@ CFLAGS += -D_GNU_SOURCE
 CFLAGS += $(INCLUDES)
 CFLAGS += -O3 -flto=8 -march=native -mtune=native
 CFLAGS += -Wall -Wstrict-prototypes -Werror
+CFLAGS += -DNO_LOGGING -Wno-unused-value -Wno-unused-but-set-variable -Wno-unused-variable
 CFLAGS += -DTGT_VERSION=\"$(VERSION)$(EXTRAVERSION)\"
 CFLAGS += -DBSDIR=\"$(DESTDIR)$(libdir)/backing-store\"
 
