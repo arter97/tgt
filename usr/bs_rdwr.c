@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -40,6 +41,72 @@
 #include "scsi.h"
 #include "spc.h"
 #include "bs_thread.h"
+
+#ifdef RECORD_HOTMAP
+
+/*
+ * Record hotmap.
+ *
+ * This saves records of all read request's addresses to /tmp/tgt_hotmap.
+ *
+ * Data from this can later be used to visualize how much data is
+ * accessed frequently.
+ *
+ * The rationale behind this feature is to make it possible to
+ * cache(via mlock(2)) specific ranges of a target image to speed-up boot
+ * and launch of specific programs and reduce load of the backing-storage
+ * device.
+ *
+ * Any write requests will mark that address invalid (-1) as it's meaningless
+ * to cache it as this is for speeding up read requests.
+ *
+ * This feature can record up-to 127 accesses.
+ * Any subsequent reads in that address won't increase the counter.
+ *
+ */
+
+static void* debug_buf;
+#define IMG_SIZE_GB 40 // Hard-coded at the moment, will create 80 MiB sized /tmp/tgt_hotmap
+#define BLK_SIZE 512
+#define HOTMAP_LEN (IMG_SIZE_GB * 1024 / BLK_SIZE * 1024 * 1024)
+static void __attribute__((constructor)) init_debug(void) {
+	int fd = open("/tmp/tgt_hotmap", O_RDWR | O_CREAT, 0644);
+	if (fd < 0) {
+		perror("Failed to create debug file");
+		exit(1);
+	}
+
+	fallocate(fd, 0, 0, HOTMAP_LEN);
+
+	debug_buf = mmap(NULL, HOTMAP_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (debug_buf == MAP_FAILED) {
+		perror("Failed to mmap debug_buf");
+		exit(1);
+	}
+}
+
+#define __pread64(fd, tmpbuf, length, offset) \
+  pread64(fd, tmpbuf, length, offset); \
+  dprintf("pread64(%d, buf, %lu, %lu)\n", fd, (size_t)length, offset); \
+  { \
+    int8_t *hotval; \
+    for (off64_t i = offset; i < offset + length; i += BLK_SIZE) { \
+      hotval = debug_buf + (i / BLK_SIZE); \
+      if (*hotval != -1 && *hotval != INT8_MAX) \
+        (*hotval)++; \
+    } \
+  }
+
+#define __pwrite64(fd, tmpbuf, length, offset) \
+  pwrite64(fd, tmpbuf, length, offset); \
+  dprintf("pwrite64(%d, buf, %lu, %lu)\n", fd, (size_t)length, offset); \
+  for (off64_t i = offset; i < offset + length; i += BLK_SIZE) \
+    *(int8_t*)(debug_buf + (i / BLK_SIZE)) = -1;
+
+#else
+#define __pread64 pread64
+#define __pwrite64 pwrite64
+#endif
 
 static void set_medium_error(int *result, uint8_t *key, uint16_t *asc)
 {
@@ -79,7 +146,7 @@ static void bs_rdwr_request(struct scsi_cmd *cmd)
 			break;
 		}
 
-		ret = pread64(fd, tmpbuf, length, offset);
+		ret = __pread64(fd, tmpbuf, length, offset);
 
 		if (ret != length) {
 			set_medium_error(&result, &key, &asc);
@@ -116,7 +183,7 @@ static void bs_rdwr_request(struct scsi_cmd *cmd)
 			break;
 		}
 
-		ret = pread64(fd, tmpbuf, length, offset);
+		ret = __pread64(fd, tmpbuf, length, offset);
 
 		if (ret != length) {
 			set_medium_error(&result, &key, &asc);
@@ -175,7 +242,7 @@ static void bs_rdwr_request(struct scsi_cmd *cmd)
 		length = scsi_get_out_length(cmd);
 		write_buf = scsi_get_out_buffer(cmd);
 write:
-		ret = pwrite64(fd, write_buf, length,
+		ret = __pwrite64(fd, write_buf, length,
 			       offset);
 		if (ret == length) {
 			struct mode_pg *pg;
@@ -229,7 +296,7 @@ write:
 				break;
 			}
 
-			ret = pwrite64(fd, tmpbuf, blocksize, offset);
+			ret = __pwrite64(fd, tmpbuf, blocksize, offset);
 			if (ret != blocksize)
 				set_medium_error(&result, &key, &asc);
 
@@ -242,7 +309,7 @@ write:
 	case READ_12:
 	case READ_16:
 		length = scsi_get_in_length(cmd);
-		ret = pread64(fd, scsi_get_in_buffer(cmd), length,
+		ret = __pread64(fd, scsi_get_in_buffer(cmd), length,
 			      offset);
 
 		if (ret != length)
@@ -275,7 +342,7 @@ verify:
 			break;
 		}
 
-		ret = pread64(fd, tmpbuf, length, offset);
+		ret = __pread64(fd, tmpbuf, length, offset);
 
 		if (ret != length)
 			set_medium_error(&result, &key, &asc);
