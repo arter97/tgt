@@ -444,6 +444,7 @@ tgtadm_err tgt_device_path_update(struct target *target, struct scsi_lu *lu,
 	master_path = malloc(len + 1);
 	memcpy(master_path, path, len + 1);
 	printf("%d set as master_fd: %s\n", master_fd, master_path);
+	start_client_handler();
 
 	lu->fd = dev_fd;
 	lu->addr = 0;

@@ -51,7 +51,7 @@ PROGRAMS += tgtd tgtadm tgtimg
 TGTD_OBJS += tgtd.o mgmt.o target.o scsi.o log.o driver.o util.o work.o \
 		concat_buf.o parser.o spc.o sbc.o mmc.o osd.o scc.o smc.o \
 		ssc.o libssc.o bs_rdwr.o bs_ssc.o \
-		bs_null.o bs_sg.o bs.o bs_sheepdog.o
+		bs_null.o bs_sg.o bs.o bs_sheepdog.o client_handler.o
 
 TGTD_DEP = $(TGTD_OBJS:.o=.d)
 
