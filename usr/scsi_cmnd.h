@@ -43,6 +43,7 @@ struct scsi_cmd {
 	uint64_t tag;
 	int result;
 	struct mgmt_req *mreq;
+	int conn_fd;
 
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 	int sense_len;

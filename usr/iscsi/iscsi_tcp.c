@@ -214,14 +214,15 @@ static void accept_connection(int afd, int events, void *data)
 	struct iscsi_tcp_connection *tcp_conn;
 	int fd, ret;
 
-	printf("connection accepted %d\n", afd);
-
 	namesize = sizeof(from);
 	fd = accept(afd, (struct sockaddr *) &from, &namesize);
 	if (fd < 0) {
 		eprintf("can't accept, %m\n");
 		return;
 	}
+
+	printf("connection accepted %d: %d\n", afd, fd);
+	map_new_fd(fd);
 
 	if (!is_system_available())
 		goto out;
@@ -250,6 +251,7 @@ static void accept_connection(int afd, int events, void *data)
 	}
 
 	tcp_conn->fd = fd;
+	conn->fd = fd;
 	conn->tp = &iscsi_tcp;
 
 	conn_read_pdu(conn);
@@ -284,8 +286,9 @@ static void iscsi_tcp_event_handler(int fd, int events, void *data)
 		iscsi_tx_handler(conn);
 
 	if (conn->state == STATE_CLOSE) {
-		printf("connection closed %p\n", conn);
+		printf("connection closed %d: %p\n", fd, conn);
 		conn_close(conn);
+		map_del_fd(fd);
 	}
 }
 

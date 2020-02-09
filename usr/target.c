@@ -402,6 +402,7 @@ tgtadm_err tgt_device_path_update(struct target *target, struct scsi_lu *lu,
 				  char *path)
 {
 	int dev_fd;
+	size_t len;
 	uint64_t size;
 	int err;
 
@@ -432,6 +433,12 @@ tgtadm_err tgt_device_path_update(struct target *target, struct scsi_lu *lu,
 		free(path);
 		return TGTADM_INVALID_REQUEST;
 	}
+
+	len = strlen(path);
+	master_fd = dev_fd;
+	master_path = malloc(len + 1);
+	memcpy(master_path, path, len + 1);
+	printf("%d set as master_fd: %s\n", master_fd, master_path);
 
 	lu->fd = dev_fd;
 	lu->addr = 0;

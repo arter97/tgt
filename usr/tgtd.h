@@ -411,4 +411,9 @@ struct service_action *
 find_service_action(struct service_action *service_action,
 		    uint32_t action);
 
+extern int master_fd;
+extern char *master_path;
+extern void map_new_fd(int afd);
+extern void map_del_fd(int afd);
+
 #endif

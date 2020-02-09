@@ -154,6 +154,7 @@ struct iscsi_connection {
 	struct list_head clist;
 	struct iscsi_session *session;
 
+	int fd;
 	int tid;
 	struct param session_param[ISCSI_PARAM_MAX];
 
