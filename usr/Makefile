@@ -38,6 +38,9 @@ CFLAGS += -DNO_LOGGING -Wno-unused-value -Wno-unused-but-set-variable -Wno-unuse
 CFLAGS += -DTGT_VERSION=\"$(VERSION)$(EXTRAVERSION)\"
 CFLAGS += -DBSDIR=\"$(DESTDIR)$(libdir)/backing-store\"
 
+# Enable hotmap recording feature
+CFLAGS += -DRECORD_HOTMAP
+
 LIBS += -lpthread -ldl
 
 ifneq ($(SD_NOTIFY),)
