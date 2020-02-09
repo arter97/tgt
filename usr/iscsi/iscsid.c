@@ -1313,7 +1313,7 @@ static int iscsi_target_cmd_queue(struct iscsi_task *task)
 	scmd->cmd_itn_id = conn->session->tsih;
 	scmd->scb = req->cdb;
 	scmd->scb_len = sizeof(req->cdb);
-	scmd->conn_fd = conn->fd;
+	scmd->subnet_addr = conn->subnet_addr;
 
 	ahs = task->ahs;
 	ahslen = req->hlength * 4;

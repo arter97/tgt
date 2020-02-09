@@ -212,7 +212,8 @@ static void accept_connection(int afd, int events, void *data)
 	socklen_t namesize;
 	struct iscsi_connection *conn;
 	struct iscsi_tcp_connection *tcp_conn;
-	int fd, ret;
+	char clnt_str[BUF_SIZE];
+	int fd, ret, addr;
 
 	namesize = sizeof(from);
 	fd = accept(afd, (struct sockaddr *) &from, &namesize);
@@ -221,8 +222,10 @@ static void accept_connection(int afd, int events, void *data)
 		return;
 	}
 
-	printf("connection accepted %d: %d\n", afd, fd);
-	map_new_fd(fd);
+	inet_ntop(AF_INET, &(((struct sockaddr_in*)&from)->sin_addr), clnt_str, BUF_SIZE);
+	printf("connection from %s accepted %d: %d\n", clnt_str, afd, fd);
+	addr = extract_subnet_addr(clnt_str);
+	map_new_fd(addr, true);
 
 	if (!is_system_available())
 		goto out;
@@ -251,7 +254,7 @@ static void accept_connection(int afd, int events, void *data)
 	}
 
 	tcp_conn->fd = fd;
-	conn->fd = fd;
+	conn->subnet_addr = addr;
 	conn->tp = &iscsi_tcp;
 
 	conn_read_pdu(conn);
@@ -288,7 +291,7 @@ static void iscsi_tcp_event_handler(int fd, int events, void *data)
 	if (conn->state == STATE_CLOSE) {
 		printf("connection closed %d: %p\n", fd, conn);
 		conn_close(conn);
-		map_del_fd(fd);
+		map_del_fd(conn->subnet_addr);
 	}
 }
 

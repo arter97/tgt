@@ -411,11 +411,14 @@ struct service_action *
 find_service_action(struct service_action *service_action,
 		    uint32_t action);
 
+#define BUF_SIZE 4096
+#include <stdbool.h>
 extern int master_fd;
 extern char *master_path;
 extern int *fd_map;
-extern void map_new_fd(int afd);
-extern void map_del_fd(int afd);
+extern void map_new_fd(int addr, bool skip);
+extern void map_del_fd(int addr);
 extern void start_client_handler(void);
+extern int extract_subnet_addr(char *str);
 
 #endif

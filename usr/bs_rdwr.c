@@ -150,7 +150,7 @@ static void bs_rdwr_request(struct scsi_cmd *cmd)
 	const char *write_buf = NULL;
 	ret = length = 0;
 	key = asc = 0;
-	fd = fd_map[cmd->conn_fd];
+	fd = fd_map[cmd->subnet_addr];
 
 	switch (cmd->scb[0])
 	{
