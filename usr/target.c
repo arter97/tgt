@@ -434,6 +434,11 @@ tgtadm_err tgt_device_path_update(struct target *target, struct scsi_lu *lu,
 		return TGTADM_INVALID_REQUEST;
 	}
 
+	if (master_fd != 0) {
+		fprintf(stderr, "master file was already set!\n");
+		exit(1);
+	}
+
 	len = strlen(path);
 	master_fd = dev_fd;
 	master_path = malloc(len + 1);
