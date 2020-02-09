@@ -30,6 +30,7 @@ GSYMS
 usr/tgtd
 usr/tgtadm
 usr/tgtimg
+usr/tgthotmap
 
 # cscope files
 cscope.*

@@ -47,7 +47,7 @@ ifneq ($(SD_NOTIFY),)
 LIBS += -lsystemd
 endif
 
-PROGRAMS += tgtd tgtadm tgtimg
+PROGRAMS += tgtd tgtadm tgtimg tgthotmap
 TGTD_OBJS += tgtd.o mgmt.o target.o scsi.o log.o driver.o util.o work.o \
 		concat_buf.o parser.o spc.o sbc.o mmc.o osd.o scc.o smc.o \
 		ssc.o libssc.o bs_rdwr.o bs_ssc.o \
@@ -83,6 +83,15 @@ tgtimg: $(TGTIMG_OBJS)
 	strip $@
 
 -include $(TGTIMG_DEP)
+
+TGTHOTMAP_OBJS = tgthotmap.o
+TGTHOTMAP_DEP = $(TGTHOTMAP_OBJS:.o=.d)
+
+tgthotmap: $(TGTHOTMAP_OBJS)
+	$(CC) $^ -o $@ $(CFLAGS)
+	strip $@
+
+-include $(TGTHOTMAP_DEP)
 
 %.o: %.c
 	$(CC) -c $(CFLAGS) $*.c -o $*.o
