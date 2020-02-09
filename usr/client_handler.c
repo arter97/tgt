@@ -14,14 +14,17 @@
  * General Public License for more details.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <signal.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
+
 #include <arpa/inet.h>
-#include <sys/socket.h>
 #include <netinet/tcp.h>
+
+#include <linux/fs.h>
+
+#include "list.h"
+#include "util.h"
+#include "tgtd.h"
 
 #define error_handling(msg) \
   do { \
@@ -41,6 +44,56 @@ static const char msg[] =
 "" "\n"
 "#!ipxe" "\n"
 "echo Image ready";
+
+void map_new_fd(int fd) {
+	int ret, new_fd;
+	char path[PATH_MAX];
+
+	if (fd_map[fd] != 0) {
+		printf("Removing existing map for fd %d\n", fd);
+		map_del_fd(fd);
+	}
+
+	sprintf(path, "%s_%04d", master_path, fd);
+	new_fd = open(path, O_RDWR | O_CREAT | O_TRUNC, 0644);
+	if (new_fd == -1) {
+		fprintf(stderr, "Failed to create new path %s: %s\n",
+			path, strerror(errno));
+		exit(1);
+	}
+
+	// Copy with reflink(CoW)
+	ret = ioctl(new_fd, FICLONE, master_fd);
+	if (ret == -1) {
+		fprintf(stderr, "Failed to ioctl(FICLONE) to new path %s: %s\n",
+			path, strerror(errno));
+		exit(1);
+	}
+
+	fd_map[fd] = new_fd;
+
+	printf("Created new CoW path %s for fd: %d\n", path, new_fd);
+}
+
+void map_del_fd(int fd) {
+	int ret;
+	char path[PATH_MAX];
+
+	if (fd_map[fd] == 0) {
+		fprintf(stderr, "Invalid map fd: %d\n", fd);
+		return;
+	}
+
+	close(fd_map[fd]);
+	sprintf(path, "%s_%04d", master_path, fd);
+	ret = unlink(path);
+	if (ret == -1) {
+		fprintf(stderr, "Failed to remove path %s: %s\n",
+			path, strerror(errno));
+	}
+
+	fd_map[fd] = 0;
+};
 
 static void start(void) {
 	int one = 1;

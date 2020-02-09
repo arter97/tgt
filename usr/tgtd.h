@@ -413,6 +413,7 @@ find_service_action(struct service_action *service_action,
 
 extern int master_fd;
 extern char *master_path;
+extern int *fd_map;
 extern void map_new_fd(int afd);
 extern void map_del_fd(int afd);
 extern void start_client_handler(void);
