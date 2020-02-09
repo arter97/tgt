@@ -467,8 +467,6 @@ static void tape_rdwr_request(struct scsi_cmd *cmd)
 		for (i = 0; i < ret; i++)
 			append_blk(cmd, scsi_get_out_buffer(cmd), 0,
 					0, BLK_FILEMARK);
-
-		fsync(cmd->dev->fd);
 		break;
 
 	case READ_6:

@@ -48,16 +48,6 @@ static void set_medium_error(int *result, uint8_t *key, uint16_t *asc)
 	*asc = ASC_READ_ERROR;
 }
 
-static void bs_sync_sync_range(struct scsi_cmd *cmd, uint32_t length,
-			       int *result, uint8_t *key, uint16_t *asc)
-{
-	int ret;
-
-	ret = fdatasync(cmd->dev->fd);
-	if (ret)
-		set_medium_error(result, key, asc);
-}
-
 static void bs_rdwr_request(struct scsi_cmd *cmd)
 {
 	int ret, fd = cmd->dev->fd;
@@ -172,8 +162,7 @@ static void bs_rdwr_request(struct scsi_cmd *cmd)
 			result = SAM_STAT_CHECK_CONDITION;
 			key = ILLEGAL_REQUEST;
 			asc = ASC_INVALID_FIELD_IN_CDB;
-		} else
-			bs_sync_sync_range(cmd, length, &result, &key, &asc);
+		}
 		break;
 	case WRITE_VERIFY:
 	case WRITE_VERIFY_12:
@@ -202,10 +191,6 @@ write:
 				asc = ASC_INVALID_FIELD_IN_CDB;
 				break;
 			}
-			if (((cmd->scb[0] != WRITE_6) && (cmd->scb[1] & 0x8)) ||
-			    !(pg->mode_data[0] & 0x04))
-				bs_sync_sync_range(cmd, length, &result, &key,
-						   &asc);
 		} else
 			set_medium_error(&result, &key, &asc);
 
