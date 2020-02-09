@@ -546,12 +546,19 @@ static int parse_params(char *name, char *p)
 
 int main(int argc, char **argv)
 {
+	struct sched_param sp = { .sched_priority = 50 };
 	struct sigaction sa_old;
 	struct sigaction sa_new;
 	int err, ch, longindex, nr_lld = 0;
 	int is_daemon = 1, is_debug = 0, use_logger = 1;
 	int ret;
 	char *pidfile = NULL;
+
+	ret = sched_setscheduler(0, SCHED_RR, &sp);
+	if (ret == -1) {
+		perror("Failed to set process scheduler policy to SCHED_RR");
+		fprintf(stderr, "Performance might be reduced\n");
+	}
 
 	sa_new.sa_handler = signal_catch;
 	sigemptyset(&sa_new.sa_mask);
