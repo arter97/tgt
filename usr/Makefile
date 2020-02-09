@@ -58,6 +58,7 @@ all: $(PROGRAMS) $(MODULES)
 
 tgtd: $(TGTD_OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS) $(LIBS)
+	strip $@
 
 -include $(TGTD_DEP)
 
@@ -66,6 +67,7 @@ TGTADM_DEP = $(TGTADM_OBJS:.o=.d)
 
 tgtadm: $(TGTADM_OBJS)
 	$(CC) $^ -o $@ $(CFLAGS)
+	strip $@
 
 -include $(TGTADM_DEP)
 
@@ -74,6 +76,7 @@ TGTIMG_DEP = $(TGTIMG_OBJS:.o=.d)
 
 tgtimg: $(TGTIMG_OBJS)
 	$(CC) $^ -o $@ $(CFLAGS)
+	strip $@
 
 -include $(TGTIMG_DEP)
 
