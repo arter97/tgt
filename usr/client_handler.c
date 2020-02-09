@@ -52,6 +52,11 @@ void map_new_fd(int addr, bool skip) {
 	int ret, new_fd;
 	char path[PATH_MAX];
 
+	if (master_path == NULL) {
+		fprintf(stderr, "Master image not set yet!\n");
+		exit(1);
+	}
+
 	if (fd_map[addr] != 0) {
 		printf("Removing existing map for addr %d\n", addr);
 		map_del_fd(addr);
