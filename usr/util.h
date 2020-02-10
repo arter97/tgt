@@ -71,6 +71,15 @@ extern char *open_flags_to_str(char *dest, int flags);
 extern int spc_memcpy(uint8_t *dst, uint32_t *dst_remain_len,
 		      uint8_t *src, uint32_t src_len);
 
+static void *(*malloc_ptr)(size_t) = &malloc;
+#undef malloc
+#define malloc(size) \
+({ \
+	void *ptr = (*malloc_ptr)(size); \
+	printf("%s:%d malloc(%ld)\n", __func__, __LINE__, (size_t)(size)); \
+	ptr; \
+})
+
 #define zalloc(size)			\
 ({					\
 	void *ptr = malloc(size);	\
