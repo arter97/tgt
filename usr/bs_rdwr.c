@@ -84,8 +84,8 @@ static void __attribute__((constructor)) init_fd_map(void) {
  */
 
 static void* debug_buf;
-#define IMG_SIZE_GB 40 // Hard-coded at the moment, will create 80 MiB sized /tmp/tgt_hotmap
-#define BLK_SIZE 512
+#define IMG_SIZE_GB 40 // Hard-coded at the moment, will create 10 MiB sized /tmp/tgt_hotmap
+#define BLK_SIZE 4096
 #define HOTMAP_LEN (IMG_SIZE_GB * 1024 / BLK_SIZE * 1024 * 1024)
 static void __attribute__((constructor)) init_debug(void) {
 	int fd = open("/tmp/tgt_hotmap", O_RDWR | O_CREAT, 0644);

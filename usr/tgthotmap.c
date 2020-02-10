@@ -22,8 +22,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define IMG_SIZE_GB 40 // Hard-coded at the moment, /tmp/tgt_hotmap should be 80 MiB
-#define BLK_SIZE 512
+#define IMG_SIZE_GB 40 // Hard-coded at the moment, /tmp/tgt_hotmap should be 10 MiB
+#define BLK_SIZE 4096
 #define HOTMAP_LEN (IMG_SIZE_GB * 1024 / BLK_SIZE * 1024 * 1024)
 
 static const char *humanSize(uint64_t bytes)
