@@ -290,8 +290,8 @@ static void iscsi_tcp_event_handler(int fd, int events, void *data)
 
 	if (conn->state == STATE_CLOSE) {
 		printf("connection closed %d: %p\n", fd, conn);
-		conn_close(conn);
 		map_del_fd(conn->subnet_addr);
+		conn_close(conn);
 	}
 }
 
