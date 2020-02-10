@@ -416,9 +416,19 @@ find_service_action(struct service_action *service_action,
 extern int master_fd;
 extern char *master_path;
 extern int *fd_map;
+extern int8_t *flag_map;
+extern int *fd_flag_map;
+extern int clients_count;
 extern void map_new_fd(int addr, bool skip);
 extern void map_del_fd(int addr);
 extern void start_client_handler(void);
 extern int extract_subnet_addr(char *str);
+
+#define IMG_SIZE_GB 40
+#define BLK_SIZE 4096
+#define MAP_LEN (IMG_SIZE_GB * 1024 / BLK_SIZE * 1024 * 1024)
+#define KB 1024
+#define MB (KB * 1024)
+#define GB (MB * 1024)
 
 #endif

@@ -41,7 +41,7 @@ CFLAGS += -DBSDIR=\"$(DESTDIR)$(libdir)/backing-store\"
 # Enable hotmap recording feature
 CFLAGS += -DRECORD_HOTMAP
 
-LIBS += -lpthread -ldl
+LIBS += -lpthread -ldl -lhugetlbfs
 
 ifneq ($(SD_NOTIFY),)
 LIBS += -lsystemd

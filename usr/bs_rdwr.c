@@ -36,6 +36,8 @@
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 
+#include <hugetlbfs.h>
+
 #include "list.h"
 #include "util.h"
 #include "tgtd.h"
@@ -45,12 +47,29 @@
 
 int master_fd = 0;
 char *master_path = NULL;
-int *fd_map = NULL;
+
 // Allow up-to 4096 clients to connect
 #define FD_LIMIT 4096
 #define FD_MAP_SIZE (sizeof(int) * FD_LIMIT)
+int *fd_map = NULL;
 
-static void __attribute__((constructor)) init_fd_map(void) {
+/*
+ * Client each uses IMAGE_SIZE_GB / BLK_SIZE.
+ * e.g. 40 GiB image with 50 clients will use 500 MiB of RAM.
+ * e.g. 60 GiB image with 50 clients will use 750 MiB of RAM.
+ *
+ * Use 1 GiB hugepage to reduce TLB overhead.
+ * 32 MiB at the end will be used as zero buffer for memcmp().
+ */
+int8_t *flag_map;
+int *fd_flag_map;
+int clients_count;
+static void *zero_buf;
+static const int filled = 0b11111111;
+
+static void __attribute__((constructor)) init_map(void) {
+	long hugepage;
+
 	fd_map = malloc(FD_MAP_SIZE);
 	if (!fd_map) {
 		perror("Failed to allocate fd_map");
@@ -58,7 +77,38 @@ static void __attribute__((constructor)) init_fd_map(void) {
 	}
 	memset(fd_map, 0, FD_MAP_SIZE);
 	printf("Allocated %ld bytes for fd_map\n", FD_MAP_SIZE);
+
+	fd_flag_map = malloc(FD_MAP_SIZE);
+	if (!fd_flag_map) {
+		perror("Failed to allocate fd_flag_map");
+		exit(1);
+	}
+	memset(fd_flag_map, 0, FD_MAP_SIZE);
+	printf("Allocated %ld bytes for fd_flag_map\n", FD_MAP_SIZE);
+
+	hugepage = gethugepagesize();
+	if (hugepage != 1 * GB) {
+		fprintf(stderr, "Hugepage not set to 1 GB, current: %ld\n", hugepage);
+		exit(1);
+	}
+
+	flag_map = get_huge_pages(1 * GB, GHP_DEFAULT);
+	if (!flag_map) {
+		perror("Failed to allocate flag_map from hugepage");
+		exit(1);
+	}
+	memset(flag_map, 0, 1 * GB);
+	printf("Allocated 1 GiB for flag_map (hugepage)\n");
+
+	zero_buf = (int8_t*)((void*)flag_map + 1 * GB - 32 * MB);
 }
+
+#define ____pread64(fd, tmpbuf, length, offset) \
+  pread64(memcmp(zero_buf, (void*)flag_map + (MAP_LEN * fd_flag_map[fd]) + (offset / BLK_SIZE), (length / BLK_SIZE) + 1) == 0 ? master_fd : fd, tmpbuf, length, offset);
+
+#define ____pwrite64(fd, tmpbuf, length, offset) \
+  pwrite64(fd, tmpbuf, length, offset); \
+  memset(((void*)flag_map + (MAP_LEN * fd_flag_map[fd]) + (offset / BLK_SIZE)), filled, length / BLK_SIZE);
 
 #ifdef RECORD_HOTMAP
 
@@ -84,9 +134,6 @@ static void __attribute__((constructor)) init_fd_map(void) {
  */
 
 static void* debug_buf;
-#define IMG_SIZE_GB 40 // Hard-coded at the moment, will create 10 MiB sized /tmp/tgt_hotmap
-#define BLK_SIZE 4096
-#define HOTMAP_LEN (IMG_SIZE_GB * 1024 / BLK_SIZE * 1024 * 1024)
 static void __attribute__((constructor)) init_debug(void) {
 	int fd = open("/tmp/tgt_hotmap", O_RDWR | O_CREAT, 0644);
 	if (fd < 0) {
@@ -94,9 +141,9 @@ static void __attribute__((constructor)) init_debug(void) {
 		exit(1);
 	}
 
-	fallocate(fd, 0, 0, HOTMAP_LEN);
+	fallocate(fd, 0, 0, MAP_LEN);
 
-	debug_buf = mmap(NULL, HOTMAP_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	debug_buf = mmap(NULL, MAP_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (debug_buf == MAP_FAILED) {
 		perror("Failed to mmap debug_buf");
 		exit(1);
@@ -104,7 +151,7 @@ static void __attribute__((constructor)) init_debug(void) {
 }
 
 #define __pread64(fd, tmpbuf, length, offset) \
-  pread64(fd, tmpbuf, length, offset); \
+  ____pread64(fd, tmpbuf, length, offset); \
   dprintf("pread64(%d, buf, %lu, %lu)\n", fd, (size_t)length, offset); \
   { \
     int8_t *hotval; \
@@ -116,14 +163,14 @@ static void __attribute__((constructor)) init_debug(void) {
   }
 
 #define __pwrite64(fd, tmpbuf, length, offset) \
-  pwrite64(fd, tmpbuf, length, offset); \
+  ____pwrite64(fd, tmpbuf, length, offset); \
   dprintf("pwrite64(%d, buf, %lu, %lu)\n", fd, (size_t)length, offset); \
   for (off64_t i = offset; i < offset + length; i += BLK_SIZE) \
     *(int8_t*)(debug_buf + (i / BLK_SIZE)) = -1;
 
 #else
-#define __pread64 pread64
-#define __pwrite64 pwrite64
+#define __pread64 ____pread64
+#define __pwrite64 ____pwrite64
 #endif
 
 static void set_medium_error(int *result, uint8_t *key, uint16_t *asc)

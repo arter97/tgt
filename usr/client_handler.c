@@ -22,6 +22,7 @@
 #include <netinet/tcp.h>
 
 #include <linux/fs.h>
+#include <pthread.h>
 
 #include "list.h"
 #include "util.h"
@@ -45,6 +46,12 @@ static const char msg[] =
 "#!ipxe" "\n"
 "echo Image ready";
 
+static pthread_mutex_t map_lock;
+
+static void __attribute__((constructor)) init_mutex(void) {
+	pthread_mutex_init(&map_lock, NULL);
+}
+
 void map_new_fd(int addr, bool skip) {
 	struct stat master_st_buf;
 	struct stat st_buf;
@@ -56,6 +63,8 @@ void map_new_fd(int addr, bool skip) {
 		fprintf(stderr, "Master image not set yet!\n");
 		exit(1);
 	}
+
+	pthread_mutex_lock(&map_lock);
 
 	if (fd_map[addr] != 0) {
 		printf("Removing existing map for addr %d\n", addr);
@@ -95,8 +104,15 @@ void map_new_fd(int addr, bool skip) {
 	}
 
 	fd_map[addr] = new_fd;
+	fd_flag_map[addr] = clients_count;
+
+	// Reset flag_map buffer for this client
+	memset((void*)flag_map + (MAP_LEN * clients_count), 0, IMG_SIZE_GB / BLK_SIZE);
+	clients_count++;
 
 	printf("Mapped CoW image %s for address %d and fd %d\n", path, addr, new_fd);
+
+	pthread_mutex_unlock(&map_lock);
 }
 
 void map_del_fd(int addr) {
