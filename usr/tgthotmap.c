@@ -22,9 +22,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#define IMG_SIZE_GB 40 // Hard-coded at the moment, /tmp/tgt_hotmap should be 10 MiB
-#define BLK_SIZE 4096
-#define HOTMAP_LEN (IMG_SIZE_GB * 1024 / BLK_SIZE * 1024 * 1024)
+#include "list.h"
+#include "tgtd.h"
 
 static const char *humanSize(uint64_t bytes)
 {
@@ -60,14 +59,14 @@ int main(int argc, char **argv)
 	}
 
 	debug_buf =
-	    mmap(NULL, HOTMAP_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	    mmap(NULL, MAP_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (debug_buf == MAP_FAILED) {
 		perror("Failed to mmap debug_buf");
 		exit(1);
 	}
 
 	sum = 0;
-	for (i = 0; i < HOTMAP_LEN; i++) {
+	for (i = 0; i < MAP_LEN; i++) {
 		val = *(int8_t*)(debug_buf + i);
 		if (val == -1)
 			sum++;
@@ -76,7 +75,7 @@ int main(int argc, char **argv)
 
 	for (cur = 1; cur != INT8_MAX; cur++) {
 		sum = 0;
-		for (i = 0; i < HOTMAP_LEN; i++) {
+		for (i = 0; i < MAP_LEN; i++) {
 			val = *(int8_t*)(debug_buf + i);
 			if (val != -1 && val >= cur)
 				sum++;
